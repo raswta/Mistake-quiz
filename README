@@ -1,0 +1,14 @@
+# Mistake Notebook
+
+Save the English mistakes you make in lessons, group them in folders, and turn them into AI quizzes.
+
+## Setup (5 minutes)
+1. **Supabase**: create a project, open *SQL Editor*, paste `supabase.sql` (kept out of the repo because it contains the admin password) and press *Run*.
+2. **config.js**: paste your Project URL and anon key (Project Settings, API).
+3. **GitHub**: upload all files to a repository.
+4. **Host**: GitHub Pages (Settings, Pages, branch `main`) or connect the repo to Netlify. No build step.
+
+## Notes
+- Admin username: `rasta1387`. Logging in as admin asks for the password you set in the SQL.
+- AI: free Pollinations.ai endpoint, no key needed (see `AI_URL` in config.js).
+- Usernames have no password, so anyone who knows a username can open that account.
