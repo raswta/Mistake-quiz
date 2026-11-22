@@ -190,7 +190,9 @@
       '<section class="card pad" style="margin-top:1.5rem"><h3>Quiz</h3>' +
       (total
         ? '<div class="setup"><label>Difficulty<select id="qd"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="mixed">Mixed</option></select></label>' +
-          '<label>Questions<select id="qc"><option>5</option><option selected>8</option><option>10</option><option>15</option><option>20</option></select></label></div>' +
+          '<label>Questions<select id="qc"><option>5</option><option selected>8</option><option>10</option><option>15</option><option>20</option><option value="custom">Type a number...</option></select></label>' +
+          '<label id="qcrow" hidden>Your number (1 to 30)<input id="qn" type="number" min="1" max="30" inputmode="numeric" placeholder="e.g. 12"></label>' +
+          '<label>Timer<select id="qt"><option value="0">No timer</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select></label></div>' +
           '<p style="margin-bottom:.5rem"><strong>Folders in the quiz</strong></p>' +
           folders.map((x) => {
             const n = countOf(x.mistakes);
@@ -212,7 +214,10 @@
       });
     };
     app.querySelectorAll(".folder").forEach((b) => { b.onclick = () => showFolder(b.dataset.id); });
-    if (total) $("#qs").onclick = () => startQuiz(subject, $("#qs"));
+    if (total) {
+      $("#qc").onchange = () => { $("#qcrow").hidden = $("#qc").value !== "custom"; };
+      $("#qs").onclick = () => startQuiz(subject, $("#qs"));
+    }
   }
 
   /* ---------- one folder: mistakes ---------- */
@@ -237,10 +242,11 @@
       '<button class="btn primary" id="ma">Save mistake</button></form></section>' +
       '<h3 style="margin-top:1.5rem">' + items.length + (items.length === 1 ? " saved mistake" : " saved mistakes") + "</h3>" +
       (items.length ? items.map((x) =>
-        '<article class="card mistake" data-id="' + x.id + '"><div class="txt">' + esc(x.content) + "</div>" +
+        '<details class="card mistake" data-id="' + x.id + '"><summary><span class="sum">' + esc(x.content) + "</span></summary>" +
+        '<div class="mbody"><div class="txt">' + esc(x.content) + "</div>" +
         (x.note ? '<div class="note">' + esc(x.note) + "</div>" : "") +
         '<div class="tools"><button class="btn small" data-act="explain">Explain</button><button class="btn small ghost" data-act="del">Delete</button></div>' +
-        '<div class="explain" hidden></div></article>').join("")
+        '<div class="explain" hidden></div></div></details>').join("")
         : '<div class="empty">Nothing here yet. Save your first mistake above.</div>');
 
     $("#back").onclick = toSubject;
@@ -332,7 +338,9 @@
   async function startQuiz(subject, btn) {
     const ids = Array.from(app.querySelectorAll(".chk input:checked")).map((x) => x.value);
     if (!ids.length) return toast("Pick at least one folder for the quiz.", true);
-    const count = parseInt($("#qc").value, 10);
+    const count = parseInt($("#qc").value === "custom" ? $("#qn").value : $("#qc").value, 10);
+    if (!Number.isInteger(count) || count < 1 || count > 30) return toast("Type a number of questions between 1 and 30.", true);
+    const minutes = parseInt($("#qt").value, 10) || 0;
     const diffMap = { easy: "easy", medium: "medium", hard: "hard", mixed: "mixed (a blend of easy, medium and hard)" };
     const difficulty = diffMap[$("#qd").value] || "medium";
     await withBusy(btn, "Writing your quiz...", async () => {
@@ -355,24 +363,36 @@
         for (let t = 0; t < 2 && !qs; t++) {
           try { qs = parseQuiz(await askAI(prompt)); } catch (err) { if (t === 1) throw new Error("The AI answer could not be read. Please try again."); }
         }
-        runQuiz(subject.name, qs, () => showSubject(subject.id));
+        runQuiz(subject.name, qs, () => showSubject(subject.id), minutes);
       } catch (e) { fail(e); }
     });
   }
 
   /* ---------- quiz ---------- */
-  function runQuiz(title, qs, back) {
-    let i = 0, score = 0, done = false;
+  function runQuiz(title, qs, back, minutes) {
+    let i = 0, score = 0, done = false, timerId = null;
+    const endAt = minutes ? Date.now() + minutes * 60000 : 0;
+    const stop = () => { if (timerId) { clearInterval(timerId); timerId = null; } };
+    const leave = () => { stop(); back(); };
+    const fmt = (ms) => { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
+    const tick = () => {
+      const el = document.getElementById("timer");
+      if (!el) return stop(); // user left the quiz page
+      const left = endAt - Date.now();
+      el.textContent = fmt(left);
+      el.classList.toggle("low", left <= 60000);
+      if (left <= 0) { stop(); result(true); }
+    };
     const draw = () => {
       if (i >= qs.length) return result();
       const q = qs[i]; done = false;
       app.innerHTML =
-        '<div class="row between"><button class="btn small ghost" id="qx">Quit quiz</button><span class="muted">' + esc(title) + "</span></div>" +
+        '<div class="row between"><button class="btn small ghost" id="qx">Quit quiz</button>' + (minutes ? '<span class="timer" id="timer" role="timer">' + fmt(endAt - Date.now()) + "</span>" : "") + '<span class="muted">' + esc(title) + "</span></div>" +
         '<div class="progress" style="margin-top:1rem"><i style="width:' + (i / qs.length * 100) + '%"></i></div>' +
         '<section class="card pad"><p class="muted">Question ' + (i + 1) + " of " + qs.length + "</p><h3>" + esc(q.question) + "</h3>" +
         q.options.map((o, k) => '<button class="opt" data-k="' + k + '">' + esc(o) + "</button>").join("") +
         '<div id="fbk"></div></section>';
-      $("#qx").onclick = back;
+      $("#qx").onclick = leave;
       app.querySelectorAll(".opt").forEach((b) => {
         b.onclick = () => {
           if (done) return; done = true;
@@ -389,13 +409,15 @@
           $("#nx").focus();
         };
       });
+      if (minutes && !timerId) timerId = setInterval(tick, 500);
     };
-    const result = () => {
+    const result = (timeUp) => {
+      stop();
       const pct = Math.round(score / qs.length * 100);
-      app.innerHTML = '<section class="card pad narrow" style="text-align:center"><p class="muted">Your score</p><div class="score">' + score + "/" + qs.length + "</div>" +
+      app.innerHTML = '<section class="card pad narrow" style="text-align:center"><p class="muted">' + (timeUp ? "Time's up! " : "") + 'Your score</p><div class="score">' + score + "/" + qs.length + "</div>" +
         "<p>" + (pct >= 80 ? "Strong work. These mistakes are getting fixed." : pct >= 50 ? "Getting there. Review the ones you missed and try again." : "Keep going. Repeating the quiz is the fastest way to fix these.") + "</p>" +
         '<div class="row" style="justify-content:center"><button class="btn primary" id="again">Back to subject</button><button class="btn" id="fl">All subjects</button></div></section>';
-      $("#again").onclick = back;
+      $("#again").onclick = leave;
       $("#fl").onclick = showSubjects;
     };
     draw();
