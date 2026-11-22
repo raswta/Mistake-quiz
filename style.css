@@ -106,3 +106,17 @@ input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-vis
 .setup{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.8rem;margin:.9rem 0}
 .setup label{margin:0}
 #addf select{width:auto;margin-top:0}
+
+/* v3: collapsible mistakes + timer */
+details.mistake{padding:0}
+details.mistake summary{display:flex;align-items:center;gap:.7rem;cursor:pointer;list-style:none;padding:.8rem 1rem .8rem 1.2rem}
+details.mistake summary::-webkit-details-marker{display:none}
+details.mistake summary:focus-visible{outline:3px solid var(--hl);outline-offset:2px;border-radius:6px}
+.sum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+details.mistake summary::after{content:"";flex:none;width:.55rem;height:.55rem;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg);margin-bottom:.2rem}
+details.mistake[open] summary::after{transform:rotate(-135deg);margin-bottom:-.2rem}
+details.mistake[open] .sum{display:none}
+.mbody{padding:0 1rem 1rem 1.2rem}
+details.mistake[open] summary{padding-bottom:.2rem;justify-content:flex-end}
+.timer{font:700 1.05rem ui-monospace,Menlo,Consolas,monospace;background:var(--ink);color:#fff;padding:.15rem .75rem;border-radius:99px}
+.timer.low{background:var(--red)}
